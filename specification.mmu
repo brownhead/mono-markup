@@ -1,0 +1,110 @@
+#= Mono-Markup Specification
+
+The Mono-Markup language is designed to convert text into a monospace, single-font-size output format, sort of like the [WordPress minimalist theme](http://pax.mioritics.ro/repository/wp/).
+
+The syntax is very much inspired by markdown, but aims to be (much) simpler and better suited for a monospace output. This is a toy project for my own diabolical needs, but I imagine the characteristics of this language might be appealing to some other devs.
+
+I don't have any experience with written languages other than English, so I'd be very interested to know if there's anything here that would make this language ill-suited for a particular written language. I'd be receptive to changing things as necessary, and will bother the multi-lingual people I know to give me feedback.
+
+#- Block-level Structures
+
+#. Blank Lines
+
+The lines immediately preceeding and following a block-level structure must be blank.
+
+#. Annotations
+
+Every block level structure can be immediately preceeded by zero or more annotation lines. Annotation lines are considered to be part of the block structure they are annotating.
+
+An annotation line consists of a string of characters, parsed as ..., preceeded by a bang.
+
+    !syntax=c++
+        printf("hello!");
+
+#. Code Blocks
+
+A code block consists of one or more indented chunks, separated by blank lines. An indented chunk is a sequence of non-blank lines, each indented by exactly 4 spaces.
+
+        printf("hello!");
+        return 0;
+
+        printf("I'm unreachable!");
+
+The lines immediately preceeding and following a code block must be blank.
+
+        Not a code block
+        cause
+    this line isnt blank
+
+#. Headings
+
+A heading consists of a string of characters, parsed as inline content, preceeded by a hash followed by a non-whitespace character.
+
+	#- Some heading text!
+
+The lines immediately preceeding and following a heading must be blank.
+
+	#- This isn't a header...
+	Because there's not a blank line here.
+
+The character immediately following the hash will be used as the *border character* and will (probably) be made to surround the text in some way.
+
+Any non-whitespace character can be used as the border character, though some characters may be less suited to the task.
+
+	#c Some unpleasantly bordered text
+
+Every heading has a *level*. The first heading on a page will have a level of 1. All headings that follow it and have the same border character will also have a level of 1.
+
+The first heading that follows it that does not have the same border character will have a level of 2, and likewise the following headings that have the same border character will also have a level of 2.
+
+This pattern continues and allows you to specify a document heirarchy.
+
+    ## Level 1 heading
+
+    #= A level 2 heading
+
+    #- A level 3 heading
+
+    ## Another level 1 heading
+
+    #- Another level 3 heading
+
+It's legal to jump levels like you see in the last two headings of the example above. The user probably doesn't want to do this normally though, and parsers are encouraged to output warnings in this case.
+
+#. Unordered Lists
+
+An unordered list is a sequence of unordered list items and unordered list item continuations. The first item in the sequence must be an unordered list item (and not an unorderd list item continuation).
+
+An unordered list item consists of a string of characters, parsed as inline content, preceeded by a space, an asterisk, and another space.
+
+An unordered list item continuation consists of a string of characters, parsed as inline content, preceeded by three spaces.
+
+     * I am a list
+     * Space after asterisk is not necessary
+     * And I am a list item
+       that got broken into two lines
+
+The lines immediately preceeding and following an unordered list must be blank.
+
+	 * I am not a list
+	 * And I do not do list things
+	Because I am not blank.
+
+#. Ordered Lists
+
+An ordered list is a sequence of ordered list items and ordered list item continuations. The first item in the sequence must be an ordered list item (and not an orderd list item continuation).
+
+An ordered list item consists of a string of characters, parsed as inline content, preceeded by a space, a one, a period, and another space.
+
+An ordered list item continuation consists of a string of characters, parsed as inline content, preceeded by four spaces.
+
+     # I am an ordered list
+     # And I do list things
+     # And I am a list item
+       that got broken into two lines
+
+The lines immediately preceeding and following an ordered list must be blank.
+
+	 # I am not a list
+	 # And I do not do list things
+	   Because I am not blank.
