@@ -10,7 +10,7 @@ I don't have any experience with written languages other than English, so I'd be
 
 ### Note on Blank Lines
 
-The lines immediately preceeding and following a block-level structure must be blank or non-existant.
+The lines immediately preceeding and following a block-level structure must be blank. The first line of a document is considered to be preceeded by a blank line, and the last line of a document is considered to be followed by a blank line.
 
     Hello world
 
@@ -22,9 +22,9 @@ The lines immediately preceeding and following a block-level structure must be b
 
 Every block level structure can be immediately preceeded by zero or more annotation lines. Annotation lines are considered to be part of the block structure they are annotating.
 
-An annotation line consists of a string of characters, parsed as ..., preceeded by a bang.
+An annotation line consists of a string of characters, parsed similarily to a set of HTML attributes, preceeded by a bang.
 
-    !syntax: c++
+    !syntax="c++"
         printf("hello!");
 
 ### Global Annotations
@@ -47,7 +47,7 @@ A code block consists of one or more indented chunks, separated by blank lines. 
 
 Those wishing to extend this spec by adding new block components are encouraged to use annotated code blocks instead. For example, if you want to support embedding a dot graph, you could add support for the following to your renderer.
 
-    !type: dotgraph
+    !type="dotgraph"
         graph graphname {
             a -- b -- c;
             b -- d;
@@ -67,9 +67,9 @@ The number of preceeding hashes is the "level" of the heading.
 
 An unordered list is a sequence of unordered list items and unordered list item continuations. The first item in the sequence must be an unordered list item (and not an unorderd list item continuation).
 
-An unordered list item consists of a string of characters, parsed as inline content, preceeded by a space, an asterisk, and another space.
+An unordered list item consists of a string of characters, parsed as inline content, preceeded by a 0 or more sets of 4 spaces, another space, an asterisk, and another space.
 
-An unordered list item continuation consists of a string of characters, parsed as inline content, preceeded by three spaces.
+An unordered list item continuation consists of a string of characters, parsed as inline content, preceeded by 0 or more sets of 4 spaces, and three spaces.
 
      * I am a list
          * Hi
@@ -78,13 +78,15 @@ An unordered list item continuation consists of a string of characters, parsed a
      * And I am a list item
        that got broken into two lines
 
+The continuation line must have the same number of sets of four spaces as the line preceeding it. In other words, the continuation must line up with the list item before it.
+
+     * Item 1
+         * Item 2
+           I need to line up with Item 2.
+
 ### Ordered Lists
 
-An ordered list is a sequence of ordered list items and ordered list item continuations. The first item in the sequence must be an ordered list item (and not an orderd list item continuation).
-
-An ordered list item consists of a string of characters, parsed as inline content, preceeded by a space, a one, a period, and another space.
-
-An ordered list item continuation consists of a string of characters, parsed as inline content, preceeded by four spaces.
+An ordered list has the same rules as an unordered list, but instead of an asterisk, it uses a hash symbol.
 
      # I am an ordered list
      # And I do list things
@@ -96,8 +98,25 @@ An ordered list item continuation consists of a string of characters, parsed as 
 
 A black quote consists of a string of characters, parsed as inline content, preceeded by a right angle bracket.
 
-> Hello I am a block quote
-> And I am great
+>
+    Hello I am a block quote
+    and I am great
+
+    !author="John Sullivan" class="Awesome"
+    >
+        But how are you doing?
+        That's really the questino
+    
+    Because I'm doing great, thanks for asking man
+    
+    >
+        Yeah! I'm so cool.
+    
+            printf("john")
+    
+        >
+            Seriously, that guys so cool!
+
 
 ### Paragraph
 
