@@ -67,7 +67,7 @@ def pop():
 def push(*args):
     return [PushAction(i) for i in args]
 
-def consume(source):
+def lex(source):
     p = Pattern
 
     BLANK_LINE_RE = r"[ \t]*(?=\n)"
@@ -90,9 +90,6 @@ def consume(source):
 
             p("Start:Code", r"    ",
               push("code", "raw-content")),
-
-            p("Start:BlockQuote", r" > ",
-              push("block-quote", "inline-content")),
 
             p("Start:Annotation", r"!(?![ \t]*\n)", push("inline-content")),
 
@@ -142,6 +139,30 @@ def consume(source):
 
     return PushdownLexer(spec).lex(source)
 
+class Node(object):
+    def __init__(self, name, parent=None, children=None, start=None, end=None):
+        self.name = name
+        self.parent = parent
+        self.children = children or []
+        self.start = start
+        self.end = end
+
+    def __repr__(self):
+        return u'Node(%r, %r)' % (self.name, self.value)
+
+def parse(tokens):
+    document = Node("Document")
+
+    node_stack = [document]
+    for i in tokens:
+        assert len(node_stack) != 0
+
+        if i.name.startswith("Start:"):
+            if len(node_stack) == 1:
+                # Create a new node if this is the start of a new block
+                node_stack.append(Node(i.name[len("Start:"):], node_stack[-1]))
+
+
 z = (
 """# Mono-Markup Specification
 
@@ -154,8 +175,10 @@ Hello world [link](href).
 
  * I am a list
    continue
+ * Yes indeed
 
  # I am an ordered list
    continue
+ # Onward!
 """)
-print consume(z)
+print lex(z)
