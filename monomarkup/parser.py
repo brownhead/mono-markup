@@ -41,6 +41,9 @@ class Node(object):
 class PushdownParser(object):
     def __init__(self, spec):
         self.spec = spec
+        for k in self.spec:
+            if isinstance(self.spec[k], InheritMarker):
+                self.spec[k] = self.spec[self.spec[k].name]
 
     def parse(self, source):
         # The root node of the document
@@ -60,7 +63,7 @@ class PushdownParser(object):
                 if match:
                     position += len(match.group())
 
-                    if not pattern.name.startswith("Start:"):
+                    if pattern.name is not None and not pattern.name.startswith("Start:"):
                         new_node = Node(pattern.name, match_object=match,
                                         parent=current_node)
                         current_node.children.append(new_node)
@@ -102,35 +105,44 @@ def pop():
 def push(*args):
     return [PushAction(i) for i in args]
 
+
+class InheritMarker(object):
+    def __init__(self, name):
+        self.name = name
+
+def inherit(name):
+    return InheritMarker(name)
+
 def parse(source):
     p = Pattern
 
-    BLANK_LINE_RE = r"[ \t]*(?=\n)"
+    BLANK_LINE_RE = r"[ \t]*\n"
 
     spec = {
         "document": [
-            p("EndLine", r"\n"),
-            p("Start:Blank", BLANK_LINE_RE),
+            p("BlankLine", BLANK_LINE_RE),
             p("Start:Text", r"\\", push("text", "inline-content")),
             p("Start:Heading", r"#{1,6} ", push("header", "inline-content")),
             p("Start:UnorderedListItem", r" \* ",
-              push("unordered-list", "inline-content")),
+              push("unordered-list", "unordered-list-item")),
             p("Start:OrderedListItem", r" \# ",
-              push("ordered-list", "inline-content")),
+              push("ordered-list", "ordered-list-item")),
             p("Start:Code", r"    ",
-              push("code", "raw-content")),
-            p("Start:Annotation", r"!(?![ \t]*\n)", push("inline-content")),
+              push("code", "code-line")),
+            p("Start:Annotation", r"!(?![ \t]*\n)", push("annotation")),
             p("Start:Text", r"", push("text", "inline-content")),
         ],
 
+        "annotation": inherit("raw-content"),
+
         "raw-content": [
             p("PlainText", r"[^\n]+"),
-            p("EndLine", r"\n", pop()),
+            p(None, r"\n", pop()),
         ],
 
         "inline-content": [
             p("PlainText", r"[^\n]+"),
-            p("EndLine", r"\n", pop()),
+            p(None, r"\n", pop()),
         ],
 
         "text": [
@@ -145,23 +157,28 @@ def parse(source):
         "unordered-list": [
             p("Start:Blank", BLANK_LINE_RE, pop()),
             p("Start:UnorderedListItem", r"(?:    )* \* ",
-              push("inline-content")),
+              push("unordered-list-item")),
             p("Start:UnorderedListItemContinuation", r"(?:    )*   ",
-              push("inline-content")),
+              push("unordered-list-item-continuation")),
         ],
+        "unordered-list-item": inherit("inline-content"),
+        "unordered-list-item-continuation": inherit("inline-content"),
 
         "ordered-list": [
             p("Start:Blank", BLANK_LINE_RE, pop()),
             p("Start:OrderedListItem", r"(?:    )* # ",
-              push("inline-content")),
+              push("ordered-list-item")),
             p("Start:OrderedListItemContinuation", r"(?:    )*   ",
-              push("inline-content")),
+              push("ordered-list-item-continuation")),
         ],
+        "ordered-list-item": inherit("inline-content"),
+        "ordered-list-item-continuation": inherit("inline-content"),
 
         "code": [
             p("Start:Blank", BLANK_LINE_RE, pop()),
-            p("Start:Code", r"    ", push("raw-content"))
+            p("Start:Code", r"    ", push("code-line"))
         ],
+        "code-line": inherit("raw-content"),
     }
 
     return PushdownParser(spec).parse(source)
