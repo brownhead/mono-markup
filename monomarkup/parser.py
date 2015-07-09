@@ -19,36 +19,71 @@ class Token(object):
     def __repr__(self):
         return u'Token(%r, %r)' % (self.name, self.value)
 
-class PushdownLexer(object):
+class Node(object):
+    def __init__(self, name, match_object=None, parent=None, children=None):
+        self.name = name
+        self.match_object = match_object
+        self.parent = parent
+        self.children = children or []
+
+    def _print(self):
+        node_stack = [(0, self)]
+        while node_stack:
+            depth, node = node_stack.pop()
+            print "  " * depth + u"Node({0.name}, {1!r})".format(node, node.match_object.group() if node.match_object else "None")
+            node_stack += [(depth + 1, i) for i in reversed(node.children)]
+
+    def __repr__(self):
+        return u'Node(%r, %r)' % (self.name, self.children)
+
+# class LiteralTextNode(object):
+
+class PushdownParser(object):
     def __init__(self, spec):
         self.spec = spec
 
-    def lex(self, source):
-        stack = ["default"]
+    def parse(self, source):
+        # The root node of the document
+        document = Node("document", None)
+
+        # Our iterator through our to-be-built AST. We will add new nodes we
+        # encounter to this node as children.
+        current_node = document
+
+        # Our iterator through the source text.
         position = 0
-        result = []
+
         while position < len(source):
             # Go through each regex associated with current state in order
-            for pattern in self.spec[stack[-1]]:
+            for pattern in self.spec[current_node.name]:
                 match = pattern.regex.match(source, position)
                 if match:
-                    result.append(Token(pattern.name, match.group()))
                     position += len(match.group())
+
+                    if not pattern.name.startswith("Start:"):
+                        new_node = Node(pattern.name, match_object=match,
+                                        parent=current_node)
+                        current_node.children.append(new_node)
 
                     for i in pattern.actions or []:
                         if isinstance(i, PopAction):
-                            stack.pop()
+                            current_node = current_node.parent
                         elif isinstance(i, PushAction):
-                            stack.append(i.state)
+                            new_node = Node(i.state, parent=current_node)
+                            current_node.children.append(new_node)
+                            current_node = new_node
                         else:
                             raise RuntimeError("dunno")
 
                     break
             else:
-                result.append(Token("InvalidCharacter", source[position]))
+                current_node.children.append(Token("InvalidCharacter", None))#source[position]))
                 position += 1
 
-        return result
+        if position < len(source):
+            RuntimeError("Finished early somehow")
+
+        return document
 
 class PopAction(object):
     def __repr(object):
@@ -67,32 +102,24 @@ def pop():
 def push(*args):
     return [PushAction(i) for i in args]
 
-def lex(source):
+def parse(source):
     p = Pattern
 
     BLANK_LINE_RE = r"[ \t]*(?=\n)"
 
     spec = {
-        "default": [
+        "document": [
             p("EndLine", r"\n"),
-
             p("Start:Blank", BLANK_LINE_RE),
-
             p("Start:Text", r"\\", push("text", "inline-content")),
-
             p("Start:Heading", r"#{1,6} ", push("header", "inline-content")),
-
             p("Start:UnorderedListItem", r" \* ",
               push("unordered-list", "inline-content")),
-
             p("Start:OrderedListItem", r" \# ",
               push("ordered-list", "inline-content")),
-
             p("Start:Code", r"    ",
               push("code", "raw-content")),
-
             p("Start:Annotation", r"!(?![ \t]*\n)", push("inline-content")),
-
             p("Start:Text", r"", push("text", "inline-content")),
         ],
 
@@ -137,30 +164,7 @@ def lex(source):
         ],
     }
 
-    return PushdownLexer(spec).lex(source)
-
-class Node(object):
-    def __init__(self, name, parent=None, children=None, start=None, end=None):
-        self.name = name
-        self.parent = parent
-        self.children = children or []
-        self.start = start
-        self.end = end
-
-    def __repr__(self):
-        return u'Node(%r, %r)' % (self.name, self.value)
-
-def parse(tokens):
-    document = Node("Document")
-
-    node_stack = [document]
-    for i in tokens:
-        assert len(node_stack) != 0
-
-        if i.name.startswith("Start:"):
-            if len(node_stack) == 1:
-                # Create a new node if this is the start of a new block
-                node_stack.append(Node(i.name[len("Start:"):], node_stack[-1]))
+    return PushdownParser(spec).parse(source)
 
 
 z = (
@@ -181,4 +185,4 @@ Hello world [link](href).
    continue
  # Onward!
 """)
-print lex(z)
+parse(z)._print()
