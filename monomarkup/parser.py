@@ -56,9 +56,11 @@ class PushdownParser(object):
         # Our iterator through the source text.
         position = 0
 
+        state_stack = [("document", document)]
+
         while position < len(source):
             # Go through each regex associated with current state in order
-            for pattern in self.spec[current_node.name]:
+            for pattern in self.spec[state_stack[-1][0]]:
                 match = pattern.regex.match(source, position)
                 if match:
                     position += len(match.group())
@@ -70,11 +72,15 @@ class PushdownParser(object):
 
                     for i in pattern.actions or []:
                         if isinstance(i, PopAction):
-                            current_node = current_node.parent
+                            if state_stack.pop()[1]:
+                                current_node = current_node.parent
                         elif isinstance(i, PushAction):
-                            new_node = Node(i.state, parent=current_node)
-                            current_node.children.append(new_node)
-                            current_node = new_node
+                            if i.create_node:
+                                new_node = Node(i.state, parent=current_node)
+                                current_node.children.append(new_node)
+                                current_node = new_node
+
+                            state_stack.append((i.state, i.create_node))
                         else:
                             raise RuntimeError("dunno")
 
@@ -93,18 +99,25 @@ class PopAction(object):
         return "PopAction()"
 
 class PushAction(object):
-    def __init__(self, state):
+    def __init__(self, state, create_node=True):
         self.state = state
+        self.create_node = create_node
 
     def __repr__(object):
-        return "PushAction(%r)" % (self.state, )
+        return "PushAction(%r, %r)" % (self.state, self.create_node)
+
+    @classmethod
+    def from_string(self, string):
+        if string.startswith(":"):
+            return PushAction(string[1:], False)
+
+        return PushAction(string, True)
 
 def pop():
     return [PopAction()]
 
 def push(*args):
-    return [PushAction(i) for i in args]
-
+    return [PushAction.from_string(i) for i in args]
 
 class InheritMarker(object):
     def __init__(self, name):
@@ -121,16 +134,27 @@ def parse(source):
     spec = {
         "document": [
             p("BlankLine", BLANK_LINE_RE),
-            p("Start:Text", r"\\", push("text", "inline-content")),
-            p("Start:Heading", r"#{1,6} ", push("header", "inline-content")),
-            p("Start:UnorderedListItem", r" \* ",
-              push("unordered-list", "unordered-list-item")),
-            p("Start:OrderedListItem", r" \# ",
-              push("ordered-list", "ordered-list-item")),
-            p("Start:Code", r"    ",
-              push("code", "code-line")),
-            p("Start:Annotation", r"!(?![ \t]*\n)", push("annotation")),
-            p("Start:Text", r"", push("text", "inline-content")),
+
+            # Text
+            p(None, r"\\", push("text", ":inline-content")),
+
+            # Heading
+            p(None, r"#{1,6} ", push("header", ":inline-content")),
+
+            # UnorderedListItem
+            p(None, r" \* ", push("unordered-list", "unordered-list-item")),
+
+            # OrderedListItem
+            p(None, r" \# ", push("ordered-list", "ordered-list-item")),
+
+            # Code
+            p(None, r"    ", push("code", "code-line")),
+
+            # Annotation
+            p(None, r"!(?![ \t]*\n)", push("annotation")),
+
+            # Text
+            p(None, r"", push("text", ":inline-content")),
         ],
 
         "annotation": inherit("raw-content"),
@@ -146,37 +170,45 @@ def parse(source):
         ],
 
         "text": [
-            p("Start:Blank", BLANK_LINE_RE, pop()),
-            p("Start:Text", r"", push("inline-content")),
+            p(None, BLANK_LINE_RE, pop()),
+
+            # Text
+            p(None, r"", push("inline-content")),
         ],
 
         "header": [
-            p("Start:Blank", BLANK_LINE_RE, pop()),
+            p(None, BLANK_LINE_RE, pop()),
         ],
 
         "unordered-list": [
-            p("Start:Blank", BLANK_LINE_RE, pop()),
-            p("Start:UnorderedListItem", r"(?:    )* \* ",
-              push("unordered-list-item")),
-            p("Start:UnorderedListItemContinuation", r"(?:    )*   ",
-              push("unordered-list-item-continuation")),
+            p(None, BLANK_LINE_RE, pop()),
+
+            # UnorderedListItem
+            p(None, r"(?:    )* \* ", push("unordered-list-item")),
+
+            # UnorderedListItemContinuation
+            p(None, r"(?:    )*   ", push("unordered-list-item-continuation")),
         ],
         "unordered-list-item": inherit("inline-content"),
         "unordered-list-item-continuation": inherit("inline-content"),
 
         "ordered-list": [
-            p("Start:Blank", BLANK_LINE_RE, pop()),
-            p("Start:OrderedListItem", r"(?:    )* # ",
-              push("ordered-list-item")),
-            p("Start:OrderedListItemContinuation", r"(?:    )*   ",
-              push("ordered-list-item-continuation")),
+            p(None, BLANK_LINE_RE, pop()),
+
+            # OrderedListItem
+            p(None, r"(?:    )* \# ", push("ordered-list-item")),
+
+            # OrderedListItemContinuation
+            p(None, r"(?:    )*   ", push("ordered-list-item-continuation")),
         ],
         "ordered-list-item": inherit("inline-content"),
         "ordered-list-item-continuation": inherit("inline-content"),
 
         "code": [
-            p("Start:Blank", BLANK_LINE_RE, pop()),
-            p("Start:Code", r"    ", push("code-line"))
+            p(None, BLANK_LINE_RE, pop()),
+
+            # Code
+            p(None, r"    ", push("code-line"))
         ],
         "code-line": inherit("raw-content"),
     }
